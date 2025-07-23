@@ -49,7 +49,10 @@ export const AttachmentPreview: React.FC<{ attachment: Attachment | UploadingAtt
                         onError={(e) => {
                             // Type assertion to satisfy TypeScript for currentTarget.src
                             const target = e.target as HTMLImageElement;
-                            target.src = '/icon.png';
+                            // Only fallback if it's not already the fallback
+                            if (target.src !== '/icon.png') {
+                                target.src = '/icon.png';
+                            }
                          }}
                         unoptimized={true}
                     />

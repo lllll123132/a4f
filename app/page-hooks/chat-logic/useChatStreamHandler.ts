@@ -248,10 +248,43 @@ export function useChatStreamHandler({
             const content = msg.content || '';
             
             if (msg.role === 'user') {
-                apiPayloadMessages.push({
-                    role: 'user',
-                    content: content as string | OpenAI.Chat.Completions.ChatCompletionContentPart[]
-                });
+                // Check if this is the new user message with attachments
+                if (msg.id === newUserMessage.id && currentAttachments.length > 0) {
+                    // Create content array with text and images
+                    const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+                    
+                    // Add text content if present
+                    if (content.trim()) {
+                        contentParts.push({
+                            type: 'text',
+                            text: content
+                        });
+                    }
+                    
+                    // Add image attachments
+                    currentAttachments.forEach(attachment => {
+                        if (attachment.url && attachment.contentType?.startsWith('image/')) {
+                            contentParts.push({
+                                type: 'image_url',
+                                image_url: {
+                                    url: attachment.url, // This should be a base64 data URL
+                                    detail: 'auto'
+                                }
+                            });
+                        }
+                    });
+                    
+                    apiPayloadMessages.push({
+                        role: 'user',
+                        content: contentParts
+                    });
+                } else {
+                    // Regular text message
+                    apiPayloadMessages.push({
+                        role: 'user',
+                        content: content as string
+                    });
+                }
             } else {
                 apiPayloadMessages.push({
                     role: 'assistant',

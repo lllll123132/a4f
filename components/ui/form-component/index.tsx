@@ -163,18 +163,122 @@ const FormComponent: React.FC<FormComponentProps> = ({
             return;
         }
         if (files.length > 0) {
-            toast.info("Attachment added (frontend only).");
-            const newAttachments = files.map(file => ({ name: file.name, contentType: file.type, url: URL.createObjectURL(file), size: file.size, }));
-            setAttachments(prev => [...prev, ...newAttachments]);
+            // Process files and convert to base64
+            Promise.all(files.map(file => {
+                return new Promise<Attachment>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const base64 = reader.result as string;
+                        resolve({
+                            name: file.name,
+                            contentType: file.type,
+                            url: base64, // Store base64 data URL
+                            size: file.size,
+                        });
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            })).then(newAttachments => {
+                setAttachments(prev => [...prev, ...newAttachments]);
+                toast.success(`${files.length} image${files.length > 1 ? 's' : ''} attached successfully.`);
+            }).catch(error => {
+                console.error('Error processing files:', error);
+                toast.error('Failed to process image files.');
+            });
         }
         event.target.value = '';
     }, [attachments.length, setAttachments, selectedModel, models]);
 
     const removeAttachment = (index: number) => { const attachmentToRemove = attachments[index]; if (attachmentToRemove.url?.startsWith('blob:')) { URL.revokeObjectURL(attachmentToRemove.url); } setAttachments(prev => prev.filter((_, i) => i !== index)); };
+    const removeAttachment = (index: number) => { 
+        const attachmentToRemove = attachments[index]; 
+        // Only revoke blob URLs, not base64 data URLs
+        if (attachmentToRemove.url?.startsWith('blob:')) { 
+            URL.revokeObjectURL(attachmentToRemove.url); 
+        } 
+        setAttachments(prev => prev.filter((_, i) => i !== index)); 
+    };
     const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (isAttachmentButtonEnabled && hasVisionSupport(selectedModel, models)) setIsDragging(true); }, [selectedModel, models, isAttachmentButtonEnabled]);
     const handleDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }, []);
     const handleDrop = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); if (!isAttachmentButtonEnabled) return; if (!hasVisionSupport(selectedModel, models)) { toast.warning(`Current model does not have vision capabilities. Cannot drop attachments.`); return; } const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/')); if (files.length > 0 && attachments.length + files.length <= MAX_IMAGES) { toast.info("Attachment drop simulated (frontend only)."); const newAttachments = files.map(file => ({ name: file.name, contentType: file.type, url: URL.createObjectURL(file), size: file.size })); setAttachments(prev => [...prev, ...newAttachments]); } else if (files.length === 0) { toast.error("Only image files can be dropped."); } else { toast.error(`Max ${MAX_IMAGES} images allowed.`); } }, [attachments.length, setAttachments, selectedModel, models, isAttachmentButtonEnabled]);
+    const handleDrop = useCallback((e: React.DragEvent) => { 
+        e.preventDefault(); 
+        e.stopPropagation(); 
+        setIsDragging(false); 
+        if (!isAttachmentButtonEnabled) return; 
+        if (!hasVisionSupport(selectedModel, models)) { 
+            toast.warning(`Current model does not have vision capabilities. Cannot drop attachments.`); 
+            return; 
+        } 
+        const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/')); 
+        if (files.length > 0 && attachments.length + files.length <= MAX_IMAGES) { 
+            // Process dropped files and convert to base64
+            Promise.all(files.map(file => {
+                return new Promise<Attachment>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const base64 = reader.result as string;
+                        resolve({
+                            name: file.name,
+                            contentType: file.type,
+                            url: base64, // Store base64 data URL
+                            size: file.size,
+                        });
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+            })).then(newAttachments => {
+                setAttachments(prev => [...prev, ...newAttachments]);
+                toast.success(`${files.length} image${files.length > 1 ? 's' : ''} dropped successfully.`);
+            }).catch(error => {
+                console.error('Error processing dropped files:', error);
+                toast.error('Failed to process dropped image files.');
+            });
+        } else if (files.length === 0) { 
+            toast.error("Only image files can be dropped."); 
+        } else { 
+            toast.error(`Max ${MAX_IMAGES} images allowed.`); 
+        } 
+    }, [attachments.length, setAttachments, selectedModel, models, isAttachmentButtonEnabled]);
     const handlePaste = useCallback((e: React.ClipboardEvent) => { if (!isAttachmentButtonEnabled || !hasVisionSupport(selectedModel, models)) return; const items = Array.from(e.clipboardData.items); const imageItems = items.filter(item => item.type.startsWith('image/')); if (imageItems.length > 0) { e.preventDefault(); if (attachments.length + imageItems.length <= MAX_IMAGES) { toast.info("Image paste simulated (frontend only)."); const files = imageItems.map(item => item.getAsFile()).filter(Boolean) as File[]; const newAttachments = files.map(file => ({ name: file.name || `Pasted Image ${Date.now()}`, contentType: file.type, url: URL.createObjectURL(file), size: file.size })); setAttachments(prev => [...prev, ...newAttachments]); } else { toast.error(`Max ${MAX_IMAGES} images allowed.`); } } }, [attachments.length, setAttachments, selectedModel, models, isAttachmentButtonEnabled]);
+    const handlePaste = useCallback((e: React.ClipboardEvent) => { 
+        if (!isAttachmentButtonEnabled || !hasVisionSupport(selectedModel, models)) return; 
+        const items = Array.from(e.clipboardData.items); 
+        const imageItems = items.filter(item => item.type.startsWith('image/')); 
+        if (imageItems.length > 0) { 
+            e.preventDefault(); 
+            if (attachments.length + imageItems.length <= MAX_IMAGES) { 
+                const files = imageItems.map(item => item.getAsFile()).filter(Boolean) as File[]; 
+                // Process pasted files and convert to base64
+                Promise.all(files.map(file => {
+                    return new Promise<Attachment>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const base64 = reader.result as string;
+                            resolve({
+                                name: file.name || `Pasted Image ${Date.now()}`,
+                                contentType: file.type,
+                                url: base64, // Store base64 data URL
+                                size: file.size,
+                            });
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(file);
+                    });
+                })).then(newAttachments => {
+                    setAttachments(prev => [...prev, ...newAttachments]);
+                    toast.success(`${files.length} image${files.length > 1 ? 's' : ''} pasted successfully.`);
+                }).catch(error => {
+                    console.error('Error processing pasted files:', error);
+                    toast.error('Failed to process pasted image files.');
+                });
+            } else { 
+                toast.error(`Max ${MAX_IMAGES} images allowed.`); 
+            } 
+        } 
+    }, [attachments.length, setAttachments, selectedModel, models, isAttachmentButtonEnabled]);
 
     const triggerFileInput = useCallback(() => {
         fileInputRef.current?.click();
