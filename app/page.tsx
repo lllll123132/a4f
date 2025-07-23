@@ -33,10 +33,10 @@ import { Component as SpotlightCursor } from '@/components/spotlight-cursor';
 // Dynamically import heavy components
 const SettingsDialog = dynamic(() =>
   import('@/components/settings-dialog').then((mod) => mod.SettingsDialog)
-);
+, { ssr: false });
 const ChatHistorySidebar = dynamic(() =>
   import('@/components/chat-history-sidebar').then((mod) => mod.ChatHistorySidebar)
-);
+, { ssr: false });
 
 const HomeContent = () => {
     const {
